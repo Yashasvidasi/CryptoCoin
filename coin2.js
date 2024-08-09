@@ -2,7 +2,7 @@ const crypto = require("crypto");
 SHA256 = (message) => crypto.createHash("sha256").update(message).digest("hex");
 const EC = require("elliptic").ec,
   ec = new EC("secp256k1");
-const { Block, Blockchain, Transaction, JeChain } = require("./blockchain");
+const { Block, Blockchain, Transaction, Ycoin } = require("./blockchain");
 
 const MINT_PRIVATE_ADDRESS =
   "0700a1ad28a20e5b2a517c00242d3e25a88d84bf54dce9e1733e6096e6d6495e";
@@ -40,7 +40,7 @@ server.on("connection", async (socket, req) => {
       case "TYPE_REPLACE_CHAIN":
         const [newBlock, newDiff] = _message.data;
 
-        const ourTx = [...JeChain.transactions.map((tx) => JSON.stringify(tx))];
+        const ourTx = [...Ycoin.transactions.map((tx) => JSON.stringify(tx))];
         const theirTx = [
           ...newBlock.data
             .filter((tx) => tx.from !== MINT_PUBLIC_ADDRESS)
@@ -48,7 +48,7 @@ server.on("connection", async (socket, req) => {
         ];
         const n = theirTx.length;
 
-        if (newBlock.prevHash !== JeChain.getLastBlock().prevHash) {
+        if (newBlock.prevHash !== Ycoin.getLastBlock().prevHash) {
           for (let i = 0; i < n; i++) {
             const index = ourTx.indexOf(theirTx[0]);
 
@@ -61,7 +61,7 @@ server.on("connection", async (socket, req) => {
           if (
             theirTx.length === 0 &&
             SHA256(
-              JeChain.getLastBlock().hash +
+              Ycoin.getLastBlock().hash +
                 newBlock.timestamp +
                 JSON.stringify(newBlock.data) +
                 newBlock.nonce
@@ -69,38 +69,38 @@ server.on("connection", async (socket, req) => {
             newBlock.hash.startsWith(
               "000" +
                 Array(
-                  Math.round(Math.log(JeChain.difficulty) / Math.log(16) + 1)
+                  Math.round(Math.log(Ycoin.difficulty) / Math.log(16) + 1)
                 ).join("0")
             ) &&
-            Block.hasValidTransactions(newBlock, JeChain) &&
+            Block.hasValidTransactions(newBlock, Ycoin) &&
             (parseInt(newBlock.timestamp) >
-              parseInt(JeChain.getLastBlock().timestamp) ||
-              JeChain.getLastBlock().timestamp === "") &&
+              parseInt(Ycoin.getLastBlock().timestamp) ||
+              Ycoin.getLastBlock().timestamp === "") &&
             parseInt(newBlock.timestamp) < Date.now() &&
-            JeChain.getLastBlock().hash === newBlock.prevHash &&
-            (newDiff + 1 === JeChain.difficulty ||
-              newDiff - 1 === JeChain.difficulty)
+            Ycoin.getLastBlock().hash === newBlock.prevHash &&
+            (newDiff + 1 === Ycoin.difficulty ||
+              newDiff - 1 === Ycoin.difficulty)
           ) {
-            JeChain.chain.push(newBlock);
-            JeChain.difficulty = newDiff;
-            JeChain.transactions = [...ourTx.map((tx) => JSON.parse(tx))];
+            Ycoin.chain.push(newBlock);
+            Ycoin.difficulty = newDiff;
+            Ycoin.transactions = [...ourTx.map((tx) => JSON.parse(tx))];
           }
         } else if (
           !checked.includes(
             JSON.stringify([
               newBlock.prevHash,
-              JeChain.chain[JeChain.chain.length - 2].timestamp || "",
+              Ycoin.chain[Ycoin.chain.length - 2].timestamp || "",
             ])
           )
         ) {
           checked.push(
             JSON.stringify([
-              JeChain.getLastBlock().prevHash,
-              JeChain.chain[JeChain.chain.length - 2].timestamp || "",
+              Ycoin.getLastBlock().prevHash,
+              Ycoin.chain[Ycoin.chain.length - 2].timestamp || "",
             ])
           );
 
-          const position = JeChain.chain.length - 1;
+          const position = Ycoin.chain.length - 1;
 
           checking = true;
 
@@ -122,9 +122,9 @@ server.on("connection", async (socket, req) => {
 
             const group = JSON.parse(mostAppeared);
 
-            JeChain.chain[position] = group[0];
-            JeChain.transactions = [...group[1]];
-            JeChain.difficulty = group[2];
+            Ycoin.chain[position] = group[0];
+            Ycoin.transactions = [...group[1]];
+            Ycoin.difficulty = group[2];
 
             check.splice(0, check.length);
           }, 5000);
@@ -140,9 +140,9 @@ server.on("connection", async (socket, req) => {
               produceMessage(
                 "TYPE_SEND_CHECK",
                 JSON.stringify([
-                  JeChain.getLastBlock(),
-                  JeChain.transactions,
-                  JeChain.difficulty,
+                  Ycoin.getLastBlock(),
+                  Ycoin.transactions,
+                  Ycoin.difficulty,
                 ])
               )
             )
@@ -158,7 +158,7 @@ server.on("connection", async (socket, req) => {
       case "TYPE_CREATE_TRANSACTION":
         const transaction = _message.data;
 
-        JeChain.addTransaction(transaction);
+        Ycoin.addTransaction(transaction);
 
         break;
 
@@ -170,7 +170,7 @@ server.on("connection", async (socket, req) => {
         } else {
           tempChain.chain.push(block);
           if (Blockchain.isValid(tempChain)) {
-            JeChain.chain = tempChain.chain;
+            Ycoin.chain = tempChain.chain;
           }
           tempChain = new Blockchain();
         }
@@ -182,12 +182,12 @@ server.on("connection", async (socket, req) => {
           (node) => node.address === _message.data
         )[0].socket;
         console.log("chain requested");
-        for (let i = 1; i < JeChain.chain.length; i++) {
+        for (let i = 1; i < Ycoin.chain.length; i++) {
           socket.send(
             JSON.stringify(
               produceMessage("TYPE_SEND_CHAIN", {
-                block: JeChain.chain[i],
-                finished: i === JeChain.chain.length - 1,
+                block: Ycoin.chain[i],
+                finished: i === Ycoin.chain.length - 1,
               })
             )
           );
@@ -201,8 +201,8 @@ server.on("connection", async (socket, req) => {
           .socket.send(
             JSON.stringify(
               produceMessage("TYPE_SEND_INFO", [
-                JeChain.difficulty,
-                JeChain.transactions,
+                Ycoin.difficulty,
+                Ycoin.transactions,
               ])
             )
           );
@@ -210,7 +210,7 @@ server.on("connection", async (socket, req) => {
         break;
 
       case "TYPE_SEND_INFO":
-        [JeChain.difficulty, JeChain.transactions] = _message.data;
+        [Ycoin.difficulty, Ycoin.transactions] = _message.data;
 
         break;
 
@@ -279,17 +279,17 @@ process.on("uncaughtException", (err) => console.log(err));
 PEERS.forEach((peer) => connect(peer));
 
 setTimeout(() => {
-  if (JeChain.transactions.length !== 0) {
+  if (Ycoin.transactions.length !== 0) {
     console.log("mining");
-    JeChain.mineTransactions(publicKey);
+    Ycoin.mineTransactions(publicKey);
     console.log("mined and sending replace request");
     sendMessage(
       produceMessage("TYPE_REPLACE_CHAIN", [
-        JeChain.getLastBlock(),
-        JeChain.difficulty,
+        Ycoin.getLastBlock(),
+        Ycoin.difficulty,
       ])
     );
     console.log("request sent");
-    console.log("chain here: >>>> ", JeChain);
+    console.log("chain here: >>>> ", Ycoin);
   }
 }, 8000);

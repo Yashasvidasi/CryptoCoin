@@ -184,6 +184,6 @@ class Transaction {
   }
 }
 
-const JeChain = new Blockchain();
+const Ycoin = new Blockchain();
 
-module.exports = { Block, Transaction, Blockchain, JeChain };
+module.exports = { Block, Transaction, Blockchain, Ycoin };
